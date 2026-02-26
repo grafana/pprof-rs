@@ -1,12 +1,12 @@
 [package]
-name = "pprof"
-version = "0.15.0"
+name = "pprof-pyroscope-fork"
+version = "0.1500.0"  # based on upstream pprof-rs v0.15.0
 authors = ["Yang Keao <keao.yang@yahoo.com>"]
 edition = "2021"
 license = "Apache-2.0"
 description = "An internal perf tools for rust programs."
-repository = "https://github.com/tikv/pprof-rs"
-documentation = "https://docs.rs/pprof/"
+repository = "https://github.com/grafana/pprof-rs"
+documentation = "https://docs.rs/pprof-pyroscope-fork/"
 readme = "README.md"
 rust-version = "1.74.0"  # MSRV
 
