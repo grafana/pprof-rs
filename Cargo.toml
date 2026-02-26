@@ -1,6 +1,6 @@
 [package]
-name = "pprof"
-version = "0.15.0"
+name = "pprof-rs-pyroscope-fork"
+version = "0.1501.0"
 authors = ["Yang Keao <keao.yang@yahoo.com>"]
 edition = "2021"
 license = "Apache-2.0"
