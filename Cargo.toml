@@ -10,6 +10,9 @@ documentation = "https://docs.rs/pprof-pyroscope-fork/"
 readme = "README.md"
 rust-version = "1.74.0"  # MSRV
 
+[lib]
+name = "pprof"  # keep Rust crate name as `pprof` so existing `use pprof::` code still compiles
+
 [features]
 default = ["cpp"]
 cpp = ["symbolic-demangle/cpp"]
