@@ -129,11 +129,11 @@ impl Symbol {
         demangle(&String::from_utf8_lossy(self.raw_name())).into_owned()
     }
 
-    pub fn sys_name(&self) -> Cow<'_, str> {
+    pub fn sys_name(&self) -> Cow<str> {
         String::from_utf8_lossy(self.raw_name())
     }
 
-    pub fn filename(&self) -> Cow<'_, str> {
+    pub fn filename(&self) -> Cow<str> {
         self.filename
             .as_ref()
             .map(|name| name.as_os_str().to_string_lossy())

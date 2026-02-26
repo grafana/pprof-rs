@@ -198,7 +198,7 @@ impl ProfilerGuard<'_> {
     }
 
     /// Generate a report
-    pub fn report(&self) -> ReportBuilder<'_> {
+    pub fn report(&self) -> ReportBuilder {
         ReportBuilder::new(
             self.profiler,
             self.timer.as_ref().map(Timer::timing).unwrap_or_default(),
