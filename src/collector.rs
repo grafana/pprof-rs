@@ -490,7 +490,7 @@ mod tests {
             expected.push(entry(i, 1));
         }
         expected.sort();
-        assert!(arr.flush_n > 0, "expected at least one flush to disk");
+        assert!(arr.flush_n > 0);
 
         assert_eq!(collect_sorted(arr.try_iter().unwrap()), expected);
 
@@ -519,7 +519,7 @@ mod tests {
         }
         expected_before.sort();
 
-        assert!(collector.flushed_to_disk() > 0, "expected evictions to have flushed data to disk");
+        assert!(collector.flushed_to_disk() > 0);
         assert_eq!(collect_sorted(collector.try_iter().unwrap()), expected_before);
 
         collector.clear().unwrap();
