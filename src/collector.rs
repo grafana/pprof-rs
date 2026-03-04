@@ -465,13 +465,11 @@ mod tests {
 
         counter.clear();
 
-        // after clear, iteration should yield nothing
         assert_eq!(
             collect_sorted(counter.iter().map(|e| (e.item, e.count))),
             vec![]
         );
 
-        // and new entries should work normally after clear
         counter.add(42, 7);
         assert_eq!(
             collect_sorted(counter.iter().map(|e| (e.item, e.count))),
@@ -483,14 +481,11 @@ mod tests {
     fn temp_fd_array_clear() {
         let mut arr = TempFdArray::<Entry<usize>>::new().unwrap();
 
-        // Fill beyond in-memory buffer to force a flush to disk
         for i in 0..=(BUFFER_LENGTH + 10) {
             arr.push(Entry { item: i, count: 1 }).unwrap();
         }
         assert!(arr.flush_n > 0, "expected at least one flush to disk");
 
-        // Copy entries out before the iterator is dropped (disk refs are only valid
-        // for the iterator's lifetime).
         assert_eq!(
             collect_sorted(arr.try_iter().unwrap().map(|e| (e.item, e.count))),
             (0..=(BUFFER_LENGTH + 10)).map(|i| (i, 1isize)).collect::<Vec<_>>()
@@ -500,13 +495,11 @@ mod tests {
 
         assert_eq!(arr.buffer_index, 0);
         assert_eq!(arr.flush_n, 0);
-        // After clear, the file should be empty — try_iter returns nothing from disk
         assert_eq!(
             collect_sorted(arr.try_iter().unwrap().map(|e| (e.item, e.count))),
             vec![]
         );
 
-        // Should be usable again after clear
         arr.push(Entry { item: 99, count: 5 }).unwrap();
         assert_eq!(
             collect_sorted(arr.try_iter().unwrap().map(|e| (e.item, e.count))),
@@ -516,13 +509,8 @@ mod tests {
 
     #[test]
     fn collector_clear_with_disk_eviction() {
-        // Use enough distinct keys to saturate the HashCounter (4096 buckets × 4 associativity
-        // = 16384 slots) and force many evictions into TempFdArray, then verify clear works.
         let mut collector = Collector::<usize>::new().unwrap();
 
-        // Add enough distinct items to guarantee evictions into TempFdArray.
-        // With 4096 buckets × 4 slots each = 16384 total slots, adding 4 × that
-        // many distinct keys ensures heavy eviction pressure.
         let n = BUCKETS * BUCKETS_ASSOCIATIVITY * 4;
         for item in 0..n {
             collector.add(item, 1).unwrap();
@@ -530,7 +518,6 @@ mod tests {
 
         assert!(collector.flushed_to_disk() > 0, "expected evictions to have flushed data to disk");
 
-        // Verify values before clearing
         assert_eq!(
             collect_sorted(collector.try_iter().unwrap().map(|e| (e.item, e.count))),
             (0..n).map(|i| (i, 1isize)).collect::<Vec<_>>()
@@ -538,13 +525,11 @@ mod tests {
 
         collector.clear().unwrap();
 
-        // After clear, iteration must yield nothing
         assert_eq!(
             collect_sorted(collector.try_iter().unwrap().map(|e| (e.item, e.count))),
             vec![]
         );
 
-        // Must be usable again: add fresh data and verify it's correct
         for item in 0..10 {
             collector.add(item, 2).unwrap();
         }
