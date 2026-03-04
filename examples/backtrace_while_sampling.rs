@@ -21,7 +21,7 @@ fn main() {
         deep_recursive(20);
     }
 
-    if let Ok(report) = guard.report().build(false) {
+    if let Ok(report) = guard.report().build() {
         let file = File::create("flamegraph.svg").unwrap();
         report.flamegraph(file).unwrap();
 

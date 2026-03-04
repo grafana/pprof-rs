@@ -87,7 +87,7 @@ fn main() {
     });
 
     loop {
-        if let Ok(report) = guard.report().build(false) {
+        if let Ok(report) = guard.report().build() {
             println!("{:?}", report);
         };
         std::thread::sleep(std::time::Duration::from_secs(1))
