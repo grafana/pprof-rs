@@ -15,7 +15,7 @@ pub const BUCKETS: usize = 1 << 12;
 pub const BUCKETS_ASSOCIATIVITY: usize = 4;
 pub const BUFFER_LENGTH: usize = (1 << 18) / std::mem::size_of::<Entry<UnresolvedFrames>>();
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug)]
 pub struct Entry<T> {
     pub item: T,
     pub count: isize,
@@ -451,14 +451,16 @@ mod tests {
         }
     }
 
-    fn sorted<'a, T: Ord + Copy + 'a>(iter: std::io::Result<impl Iterator<Item = &'a Entry<T>>>) -> Vec<Entry<T>> {
-        let mut v: Vec<Entry<T>> = iter.unwrap().map(|e| Entry { item: e.item, count: e.count }).collect();
-        v.sort();
-        v
-    }
-
-    fn entry(item: usize, count: isize) -> Entry<usize> {
-        Entry { item, count }
+    #[cfg(test)]
+    fn assert_entries<'a, T: Ord + Copy + Debug + 'a>(
+        iter: std::io::Result<impl Iterator<Item = &'a Entry<T>>>,
+        mut expected: Vec<Entry<T>>,
+    ) {
+        let mut actual: Vec<(T, isize)> = iter.unwrap().map(|e| (e.item, e.count)).collect();
+        actual.sort();
+        expected.sort_by_key(|e| (e.item, e.count));
+        let expected_tuples: Vec<(T, isize)> = expected.iter().map(|e| (e.item, e.count)).collect();
+        assert_eq!(actual, expected_tuples);
     }
 
     #[test]
@@ -467,17 +469,17 @@ mod tests {
         counter.add(1, 1);
         counter.add(2, 3);
 
-        assert_eq!(
-            sorted(Ok(counter.iter())),
-            vec![entry(1, 1), entry(2, 3)]
+        assert_entries(
+            Ok(counter.iter()),
+            vec![Entry { item: 1usize, count: 1 }, Entry { item: 2, count: 3 }],
         );
 
         counter.clear();
 
-        assert_eq!(sorted(Ok(counter.iter())), vec![]);
+        assert_entries(Ok(counter.iter()), vec![]);
 
         counter.add(42, 7);
-        assert_eq!(sorted(Ok(counter.iter())), vec![entry(42, 7)]);
+        assert_entries(Ok(counter.iter()), vec![Entry { item: 42usize, count: 7 }]);
     }
 
     #[test]
@@ -487,21 +489,20 @@ mod tests {
 
         for i in 0..=(BUFFER_LENGTH + 10) {
             arr.push(Entry { item: i, count: 1 }).unwrap();
-            expected.push(entry(i, 1));
+            expected.push(Entry { item: i, count: 1 });
         }
-        expected.sort();
         assert!(arr.flush_n > 0);
 
-        assert_eq!(sorted(arr.try_iter()), expected);
+        assert_entries(arr.try_iter(), expected);
 
         arr.clear().unwrap();
 
         assert_eq!(arr.buffer_index, 0);
         assert_eq!(arr.flush_n, 0);
-        assert_eq!(sorted(arr.try_iter()), vec![]);
+        assert_entries(arr.try_iter(), vec![]);
 
         arr.push(Entry { item: 99, count: 5 }).unwrap();
-        assert_eq!(sorted(arr.try_iter()), vec![entry(99, 5)]);
+        assert_entries(arr.try_iter(), vec![Entry { item: 99usize, count: 5 }]);
     }
 
     #[test]
@@ -512,21 +513,21 @@ mod tests {
         let mut expected_before: Vec<Entry<usize>> = Vec::new();
         for item in 0..n {
             collector.add(item, 1).unwrap();
-            expected_before.push(entry(item, 1));
+            expected_before.push(Entry { item, count: 1 });
         }
-        expected_before.sort();
 
         assert!(collector.flushed_to_disk() > 0);
-        assert_eq!(sorted(collector.try_iter()), expected_before);
+        assert_entries(collector.try_iter(), expected_before);
 
         collector.clear().unwrap();
 
-        assert_eq!(sorted(collector.try_iter()), vec![]);
+        assert_entries(collector.try_iter(), vec![]);
 
-        let expected_reuse: Vec<Entry<usize>> = (0..10).map(|i| entry(i, 2)).collect();
+        let mut expected_reuse: Vec<Entry<usize>> = Vec::new();
         for item in 0..10 {
             collector.add(item, 2).unwrap();
+            expected_reuse.push(Entry { item, count: 2 });
         }
-        assert_eq!(sorted(collector.try_iter()), expected_reuse);
+        assert_entries(collector.try_iter(), expected_reuse);
     }
 }
