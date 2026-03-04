@@ -138,6 +138,52 @@ impl<'a> ReportBuilder<'a> {
             }
         }
     }
+
+    /// Build a `Report` and atomically reset the profiler's sample data.
+    /// Both operations happen under a single write lock, so no samples
+    /// are lost or double-counted between report and reset.
+    pub fn build_and_reset(&self) -> Result<Report> {
+        let mut hash_map = HashMap::new();
+
+        match self.profiler.write().as_mut() {
+            Err(err) => {
+                log::error!("Error in creating profiler: {}", err);
+                Err(Error::CreatingError)
+            }
+            Ok(profiler) => {
+                profiler.data.try_iter()?.for_each(|entry| {
+                    let count = entry.count;
+                    if count > 0 {
+                        let mut key = Frames::from(entry.item.clone());
+                        if let Some(processor) = &self.frames_post_processor {
+                            processor(&mut key);
+                        }
+
+                        match hash_map.get_mut(&key) {
+                            Some(value) => {
+                                *value += count;
+                            }
+                            None => {
+                                match hash_map.insert(key, count) {
+                                    None => {}
+                                    Some(_) => {
+                                        unreachable!();
+                                    }
+                                };
+                            }
+                        }
+                    }
+                });
+
+                profiler.reset_data()?;
+
+                Ok(Report {
+                    data: hash_map,
+                    timing: self.timing.clone(),
+                })
+            }
+        }
+    }
 }
 
 /// This will generate Report in a human-readable format:
