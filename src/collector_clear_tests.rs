@@ -17,7 +17,7 @@ fn hash_counter_clear() {
 
     // and new entries should work normally after clear
     counter.add(42, 7);
-    let entries: Vec<_> = counter.iter().filter(|e| e.count > 0).collect();
+    let entries: Vec<_> = counter.iter().collect();
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].item, 42);
     assert_eq!(entries[0].count, 7);
@@ -25,14 +25,10 @@ fn hash_counter_clear() {
 
 #[test]
 fn temp_fd_array_clear() {
-    // Entry<usize> size: usize (item) + isize (count) = 16 bytes on 64-bit
-    // BUFFER_LENGTH for Entry<usize> = (1<<18) / 16 = 16384
-    // Push enough entries to trigger at least one flush to disk, then clear.
-    let buf_len = (1 << 18) / std::mem::size_of::<Entry<usize>>();
     let mut arr = TempFdArray::<Entry<usize>>::new().unwrap();
 
     // Fill beyond in-memory buffer to force a flush to disk
-    for i in 0..=(buf_len + 10) {
+    for i in 0..=(BUFFER_LENGTH + 10) {
         arr.push(Entry { item: i, count: 1 }).unwrap();
     }
     assert!(arr.flush_n > 0, "expected at least one flush to disk");
