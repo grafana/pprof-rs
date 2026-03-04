@@ -466,7 +466,7 @@ mod tests {
         let to_cmp = |e: &Entry<T>| EntryCmp { item: e.item, count: e.count };
 
         let Ok(iter) = iter else { panic!("iterator error") };
-        let mut actual: Vec<EntryCmp<T>> = iter.map(|e| to_cmp(e)).collect();
+        let mut actual: Vec<EntryCmp<T>> = iter.map(to_cmp).collect();
         let mut expected: Vec<EntryCmp<T>> = expected.iter().map(|e| to_cmp(e)).collect();
         actual.sort();
         expected.sort();
