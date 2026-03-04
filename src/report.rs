@@ -104,6 +104,8 @@ impl<'a> ReportBuilder<'a> {
 
     /// Build a `Report`. If `reset` is true, atomically resets the
     /// profiler's sample data under the same write lock.
+    /// NOTE: pyroscope patch — added to support periodic report collection
+    /// without recreating the ProfilerGuard. See https://github.com/grafana/pprof-rs/pull/10
     pub fn build_and_reset(&self, reset: bool) -> Result<Report> {
         let mut hash_map = HashMap::new();
 
