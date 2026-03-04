@@ -15,7 +15,7 @@ pub const BUCKETS: usize = 1 << 12;
 pub const BUCKETS_ASSOCIATIVITY: usize = 4;
 pub const BUFFER_LENGTH: usize = (1 << 18) / std::mem::size_of::<Entry<UnresolvedFrames>>();
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Entry<T> {
     pub item: T,
     pub count: isize,
@@ -457,11 +457,10 @@ mod tests {
         iter: std::io::Result<impl Iterator<Item = &'a Entry<T>>>,
         mut expected: Vec<Entry<T>>,
     ) {
-        let mut actual: Vec<(T, isize)> = iter.unwrap().map(|e| (e.item, e.count)).collect();
-        actual.sort();
+        let mut actual: Vec<Entry<T>> = iter.unwrap().map(|e| Entry { item: e.item, count: e.count }).collect();
+        actual.sort_by_key(|e| (e.item, e.count));
         expected.sort_by_key(|e| (e.item, e.count));
-        let expected_tuples: Vec<(T, isize)> = expected.iter().map(|e| (e.item, e.count)).collect();
-        assert_eq!(actual, expected_tuples);
+        assert_eq!(actual, expected);
     }
 
     #[test]
