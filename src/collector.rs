@@ -451,8 +451,8 @@ mod tests {
         }
     }
 
-    fn collect_sorted<'a, T: Ord + Copy + 'a>(iter: impl Iterator<Item = &'a Entry<T>>) -> Vec<Entry<T>> {
-        let mut v: Vec<Entry<T>> = iter.map(|e| Entry { item: e.item, count: e.count }).collect();
+    fn sorted<'a, T: Ord + Copy + 'a>(iter: std::io::Result<impl Iterator<Item = &'a Entry<T>>>) -> Vec<Entry<T>> {
+        let mut v: Vec<Entry<T>> = iter.unwrap().map(|e| Entry { item: e.item, count: e.count }).collect();
         v.sort();
         v
     }
@@ -468,16 +468,16 @@ mod tests {
         counter.add(2, 3);
 
         assert_eq!(
-            collect_sorted(counter.iter()),
+            sorted(Ok(counter.iter())),
             vec![entry(1, 1), entry(2, 3)]
         );
 
         counter.clear();
 
-        assert_eq!(collect_sorted(counter.iter()), vec![]);
+        assert_eq!(sorted(Ok(counter.iter())), vec![]);
 
         counter.add(42, 7);
-        assert_eq!(collect_sorted(counter.iter()), vec![entry(42, 7)]);
+        assert_eq!(sorted(Ok(counter.iter())), vec![entry(42, 7)]);
     }
 
     #[test]
@@ -492,19 +492,16 @@ mod tests {
         expected.sort();
         assert!(arr.flush_n > 0);
 
-        assert_eq!(collect_sorted(arr.try_iter().unwrap()), expected);
+        assert_eq!(sorted(arr.try_iter()), expected);
 
         arr.clear().unwrap();
 
         assert_eq!(arr.buffer_index, 0);
         assert_eq!(arr.flush_n, 0);
-        assert_eq!(collect_sorted(arr.try_iter().unwrap()), vec![]);
+        assert_eq!(sorted(arr.try_iter()), vec![]);
 
         arr.push(Entry { item: 99, count: 5 }).unwrap();
-        assert_eq!(
-            collect_sorted(arr.try_iter().unwrap()),
-            vec![entry(99, 5)]
-        );
+        assert_eq!(sorted(arr.try_iter()), vec![entry(99, 5)]);
     }
 
     #[test]
@@ -520,16 +517,16 @@ mod tests {
         expected_before.sort();
 
         assert!(collector.flushed_to_disk() > 0);
-        assert_eq!(collect_sorted(collector.try_iter().unwrap()), expected_before);
+        assert_eq!(sorted(collector.try_iter()), expected_before);
 
         collector.clear().unwrap();
 
-        assert_eq!(collect_sorted(collector.try_iter().unwrap()), vec![]);
+        assert_eq!(sorted(collector.try_iter()), vec![]);
 
         let expected_reuse: Vec<Entry<usize>> = (0..10).map(|i| entry(i, 2)).collect();
         for item in 0..10 {
             collector.add(item, 2).unwrap();
         }
-        assert_eq!(collect_sorted(collector.try_iter().unwrap()), expected_reuse);
+        assert_eq!(sorted(collector.try_iter()), expected_reuse);
     }
 }
