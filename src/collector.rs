@@ -457,7 +457,8 @@ mod tests {
         iter: std::io::Result<impl Iterator<Item = &'a Entry<T>>>,
         mut expected: Vec<Entry<T>>,
     ) {
-        let mut actual: Vec<Entry<T>> = iter.unwrap().map(|e| Entry { item: e.item, count: e.count }).collect();
+        let Ok(iter) = iter else { panic!("iterator error") };
+        let mut actual: Vec<Entry<T>> = iter.map(|e| Entry { item: e.item, count: e.count }).collect();
         actual.sort_by_key(|e| (e.item, e.count));
         expected.sort_by_key(|e| (e.item, e.count));
         assert_eq!(actual, expected);
