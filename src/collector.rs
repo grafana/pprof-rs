@@ -463,7 +463,10 @@ mod tests {
             count: isize,
         }
 
-        let to_cmp = |e: &Entry<T>| EntryCmp { item: e.item, count: e.count };
+        let to_cmp = |e: &Entry<T>| EntryCmp {
+            item: e.item,
+            count: e.count,
+        };
 
         assert!(iter.is_ok(), "iterator error: {:?}", iter.err());
         let Ok(iter) = iter else { return };
@@ -482,7 +485,13 @@ mod tests {
 
         assert_entries(
             Ok(counter.iter()),
-            vec![Entry { item: 1usize, count: 1 }, Entry { item: 2, count: 3 }],
+            vec![
+                Entry {
+                    item: 1usize,
+                    count: 1,
+                },
+                Entry { item: 2, count: 3 },
+            ],
         );
 
         counter.clear();
@@ -490,7 +499,13 @@ mod tests {
         assert_entries(Ok(counter.iter()), vec![]);
 
         counter.add(42, 7);
-        assert_entries(Ok(counter.iter()), vec![Entry { item: 42usize, count: 7 }]);
+        assert_entries(
+            Ok(counter.iter()),
+            vec![Entry {
+                item: 42usize,
+                count: 7,
+            }],
+        );
     }
 
     #[test]
