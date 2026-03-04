@@ -451,8 +451,8 @@ mod tests {
         }
     }
 
-    fn collect_sorted<T: Ord + Copy>(iter: impl Iterator<Item = (T, isize)>) -> Vec<(T, isize)> {
-        let mut v: Vec<(T, isize)> = iter.collect();
+    fn collect_sorted<'a, T: Ord + Copy + 'a>(iter: impl Iterator<Item = &'a Entry<T>>) -> Vec<(T, isize)> {
+        let mut v: Vec<(T, isize)> = iter.map(|e| (e.item, e.count)).collect();
         v.sort();
         v
     }
@@ -465,16 +465,10 @@ mod tests {
 
         counter.clear();
 
-        assert_eq!(
-            collect_sorted(counter.iter().map(|e| (e.item, e.count))),
-            vec![]
-        );
+        assert_eq!(collect_sorted(counter.iter()), vec![]);
 
         counter.add(42, 7);
-        assert_eq!(
-            collect_sorted(counter.iter().map(|e| (e.item, e.count))),
-            vec![(42usize, 7isize)]
-        );
+        assert_eq!(collect_sorted(counter.iter()), vec![(42usize, 7isize)]);
     }
 
     #[test]
@@ -487,7 +481,7 @@ mod tests {
         assert!(arr.flush_n > 0, "expected at least one flush to disk");
 
         assert_eq!(
-            collect_sorted(arr.try_iter().unwrap().map(|e| (e.item, e.count))),
+            collect_sorted(arr.try_iter().unwrap()),
             (0..=(BUFFER_LENGTH + 10)).map(|i| (i, 1isize)).collect::<Vec<_>>()
         );
 
@@ -495,14 +489,11 @@ mod tests {
 
         assert_eq!(arr.buffer_index, 0);
         assert_eq!(arr.flush_n, 0);
-        assert_eq!(
-            collect_sorted(arr.try_iter().unwrap().map(|e| (e.item, e.count))),
-            vec![]
-        );
+        assert_eq!(collect_sorted(arr.try_iter().unwrap()), vec![]);
 
         arr.push(Entry { item: 99, count: 5 }).unwrap();
         assert_eq!(
-            collect_sorted(arr.try_iter().unwrap().map(|e| (e.item, e.count))),
+            collect_sorted(arr.try_iter().unwrap()),
             vec![(99usize, 5isize)]
         );
     }
@@ -519,22 +510,19 @@ mod tests {
         assert!(collector.flushed_to_disk() > 0, "expected evictions to have flushed data to disk");
 
         assert_eq!(
-            collect_sorted(collector.try_iter().unwrap().map(|e| (e.item, e.count))),
+            collect_sorted(collector.try_iter().unwrap()),
             (0..n).map(|i| (i, 1isize)).collect::<Vec<_>>()
         );
 
         collector.clear().unwrap();
 
-        assert_eq!(
-            collect_sorted(collector.try_iter().unwrap().map(|e| (e.item, e.count))),
-            vec![]
-        );
+        assert_eq!(collect_sorted(collector.try_iter().unwrap()), vec![]);
 
         for item in 0..10 {
             collector.add(item, 2).unwrap();
         }
         assert_eq!(
-            collect_sorted(collector.try_iter().unwrap().map(|e| (e.item, e.count))),
+            collect_sorted(collector.try_iter().unwrap()),
             (0..10).map(|i| (i, 2isize)).collect::<Vec<_>>()
         );
     }
