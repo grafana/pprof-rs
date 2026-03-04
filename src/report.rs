@@ -99,14 +99,14 @@ impl<'a> ReportBuilder<'a> {
 
     /// Build a `Report`.
     pub fn build(&self) -> Result<Report> {
-        self.build_and_reset(false)
+        self.build_and_clear(false)
     }
 
-    /// Build a `Report`. If `reset` is true, atomically resets the
+    /// Build a `Report`. If `clear` is true, atomically clears the
     /// profiler's sample data under the same write lock.
     /// NOTE: pyroscope patch — added to support periodic report collection
     /// without recreating the ProfilerGuard. See https://github.com/grafana/pprof-rs/pull/10
-    pub fn build_and_reset(&self, reset: bool) -> Result<Report> {
+    pub fn build_and_clear(&self, clear: bool) -> Result<Report> {
         let mut hash_map = HashMap::new();
 
         match self.profiler.write().as_mut() {
@@ -139,7 +139,7 @@ impl<'a> ReportBuilder<'a> {
                     }
                 });
 
-                if reset {
+                if clear {
                     profiler.clear()?;
                 }
 

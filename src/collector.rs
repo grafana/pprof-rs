@@ -294,8 +294,8 @@ impl<T: Hash + Eq + 'static> Collector<T> {
     }
 
     #[cfg(test)]
-    pub fn flushed_to_disk(&self) -> bool {
-        self.temp_array.flush_n > 0
+    pub fn flushed_to_disk(&self) -> usize {
+        self.temp_array.flush_n
     }
 }
 
@@ -514,7 +514,7 @@ mod tests {
             collector.add(item, 1).unwrap();
         }
 
-        assert!(collector.flushed_to_disk(), "expected evictions to have flushed data to disk");
+        assert!(collector.flushed_to_disk() > 0, "expected evictions to have flushed data to disk");
 
         // Verify values before clearing (add_map copies item+count, so no dangling refs)
         let mut real_map_before = BTreeMap::new();
