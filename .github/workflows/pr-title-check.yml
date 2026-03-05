@@ -1,0 +1,30 @@
+name: PR Title Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  check-title:
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title follows conventional commits
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          # Check if PR title starts with feat:, fix:, feat!:, or fix!:
+          if echo "$PR_TITLE" | grep -qE '^(feat|fix)(!)?:'; then
+            echo "✓ PR title follows conventional commits format"
+            exit 0
+          else
+            echo "✗ PR title must start with 'feat:', 'fix:', 'feat!:', or 'fix!:'"
+            echo "  Current title: $PR_TITLE"
+            echo ""
+            echo "Examples:"
+            echo "  feat: add new feature"
+            echo "  fix: resolve bug in profiler"
+            echo "  feat!: breaking change to API"
+            echo "  fix!: breaking fix"
+            exit 1
+          fi
