@@ -13,18 +13,20 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          # Check if PR title starts with feat:, fix:, feat!:, or fix!:
-          if echo "$PR_TITLE" | grep -qE '^(feat|fix)(!)?:'; then
+          # Check if PR title starts with allowed conventional commit types
+          if echo "$PR_TITLE" | grep -qE '^(feat|fix|ci|chore)(!)?:'; then
             echo "✓ PR title follows conventional commits format"
             exit 0
           else
-            echo "✗ PR title must start with 'feat:', 'fix:', 'feat!:', or 'fix!:'"
+            echo "✗ PR title must start with 'feat:', 'fix:', 'ci:', 'chore:', or any with '!' for breaking changes"
             echo "  Current title: $PR_TITLE"
             echo ""
             echo "Examples:"
-            echo "  feat: add new feature"
-            echo "  fix: resolve bug in profiler"
-            echo "  feat!: breaking change to API"
-            echo "  fix!: breaking fix"
+            echo "  feat: add new feature (triggers minor version bump)"
+            echo "  fix: resolve bug in profiler (triggers patch version bump)"
+            echo "  ci: update GitHub Actions workflows (triggers patch version bump)"
+            echo "  chore: update dependencies (triggers patch version bump)"
+            echo "  feat!: breaking change to API (triggers major version bump)"
+            echo "  fix!: breaking fix (triggers major version bump)"
             exit 1
           fi
