@@ -475,6 +475,12 @@ impl Profiler {
     /// Clear the sample data collector without stopping profiling.
     /// Signal handler and timer remain active — only the accumulated
     /// samples are discarded.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NotRunning`] if the profiler is not currently active.
+    /// Returns an I/O error if truncating the overflow backing file fails.
+    ///
     /// NOTE: pyroscope patch — added to support periodic report collection
     /// without recreating the ProfilerGuard. See https://github.com/grafana/pyroscope-rs/issues/399
     pub fn clear(&mut self) -> Result<()> {
