@@ -9,12 +9,7 @@ use once_cell::sync::Lazy;
 use smallvec::SmallVec;
 use spin::RwLock;
 
-#[cfg(any(
-    target_arch = "x86_64",
-    target_arch = "aarch64",
-    target_arch = "riscv64",
-    target_arch = "loongarch64"
-))]
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use findshlibs::{Segment, SharedLibrary, TargetSharedLibrary};
 
 use crate::collector::Collector;
@@ -34,12 +29,7 @@ pub struct Profiler {
     old_sigaction: Option<signal::SigAction>,
     running: bool,
 
-    #[cfg(any(
-        target_arch = "x86_64",
-        target_arch = "aarch64",
-        target_arch = "riscv64",
-        target_arch = "loongarch64"
-    ))]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     blocklist_segments: Vec<(usize, usize)>,
 }
 
@@ -47,12 +37,7 @@ pub struct Profiler {
 pub struct ProfilerGuardBuilder {
     frequency: c_int,
 
-    #[cfg(any(
-        target_arch = "x86_64",
-        target_arch = "aarch64",
-        target_arch = "riscv64",
-        target_arch = "loongarch64"
-    ))]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     blocklist_segments: Vec<(usize, usize)>,
 }
 
@@ -61,12 +46,7 @@ impl Default for ProfilerGuardBuilder {
         ProfilerGuardBuilder {
             frequency: 99,
 
-            #[cfg(any(
-                target_arch = "x86_64",
-                target_arch = "aarch64",
-                target_arch = "riscv64",
-                target_arch = "loongarch64"
-            ))]
+            #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
             blocklist_segments: Vec::new(),
         }
     }
@@ -77,12 +57,7 @@ impl ProfilerGuardBuilder {
         Self { frequency, ..self }
     }
 
-    #[cfg(any(
-        target_arch = "x86_64",
-        target_arch = "aarch64",
-        target_arch = "riscv64",
-        target_arch = "loongarch64"
-    ))]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     pub fn blocklist<T: AsRef<str>>(self, blocklist: &[T]) -> Self {
         let blocklist_segments = {
             let mut segments = Vec::new();
@@ -127,12 +102,7 @@ impl ProfilerGuardBuilder {
                 Err(Error::CreatingError)
             }
             Ok(profiler) => {
-                #[cfg(any(
-                    target_arch = "x86_64",
-                    target_arch = "aarch64",
-                    target_arch = "riscv64",
-                    target_arch = "loongarch64"
-                ))]
+                #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
                 {
                     profiler.blocklist_segments = self.blocklist_segments;
                 }
@@ -274,12 +244,7 @@ impl Drop for ErrnoProtector {
 
 #[no_mangle]
 #[cfg_attr(
-    not(all(any(
-        target_arch = "x86_64",
-        target_arch = "aarch64",
-        target_arch = "riscv64",
-        target_arch = "loongarch64"
-    ))),
+    not(all(any(target_arch = "x86_64", target_arch = "aarch64"))),
     allow(unused_variables)
 )]
 #[allow(clippy::unnecessary_cast)]
@@ -292,12 +257,7 @@ extern "C" fn perf_signal_handler(
 
     if let Some(mut guard) = PROFILER.try_write() {
         if let Ok(profiler) = guard.as_mut() {
-            #[cfg(any(
-                target_arch = "x86_64",
-                target_arch = "aarch64",
-                target_arch = "riscv64",
-                target_arch = "loongarch64"
-            ))]
+            #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
             if !ucontext.is_null() {
                 let ucontext: *mut libc::ucontext_t = ucontext as *mut libc::ucontext_t;
 
@@ -336,12 +296,6 @@ extern "C" fn perf_signal_handler(
                         (*mcontext).__ss.__pc as usize
                     }
                 };
-
-                #[cfg(all(target_arch = "riscv64", target_os = "linux"))]
-                let addr = unsafe { (*ucontext).uc_mcontext.__gregs[libc::REG_PC] as usize };
-
-                #[cfg(all(target_arch = "loongarch64", target_os = "linux"))]
-                let addr = unsafe { (*ucontext).uc_mcontext.__pc as usize };
 
                 if profiler.is_blocklisted(addr) {
                     return;
@@ -382,22 +336,12 @@ impl Profiler {
             old_sigaction: None,
             running: false,
 
-            #[cfg(any(
-                target_arch = "x86_64",
-                target_arch = "aarch64",
-                target_arch = "riscv64",
-                target_arch = "loongarch64"
-            ))]
+            #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
             blocklist_segments: Vec::new(),
         })
     }
 
-    #[cfg(any(
-        target_arch = "x86_64",
-        target_arch = "aarch64",
-        target_arch = "riscv64",
-        target_arch = "loongarch64"
-    ))]
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn is_blocklisted(&self, addr: usize) -> bool {
         for libs in &self.blocklist_segments {
             if addr > libs.0 && addr < libs.1 {
