@@ -4,6 +4,7 @@ use framehop::{
 use libc::{c_void, ucontext_t};
 use once_cell::sync::Lazy;
 use spin::RwLock;
+use crate::frames::Frame;
 use crate::shlib;
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
@@ -126,42 +127,22 @@ fn read_stack(addr: u64) -> Result<u64, ()> {
 
 static UNWINDER: Lazy<RwLock<FramehopUnwinder>> =
     Lazy::new(|| RwLock::new(FramehopUnwinder::new()));
-#[derive(Clone, Debug)]
-pub struct Frame {
-    pub ip: usize,
-}
 
 extern "C" {
     fn _Unwind_FindEnclosingFunction(pc: *mut c_void) -> *mut c_void;
 
 }
 
-impl super::Frame for Frame {
-    type S = backtrace::Symbol;
-    fn ip(&self) -> usize {
-        self.ip
-    }
-
-    fn symbol_address(&self) -> *mut c_void {
-        if cfg!(target_os = "macos") || cfg!(target_os = "ios") {
-            self.ip as *mut c_void
-        } else {
-            unsafe { _Unwind_FindEnclosingFunction(self.ip as *mut c_void) }
-        }
-    }
-
-}
 
 pub struct Trace;
 
-impl super::Trace for Trace {
-    type Frame = Frame;
+impl Trace {
 
-    fn init() {
+    pub fn init() {
         let _ = UNWINDER.read();
     }
 
-    fn trace<F: FnMut(&Self::Frame) -> bool>(ctx: *mut c_void, cb: F)
+    pub fn trace<F: FnMut(&Frame) -> bool>(ctx: *mut c_void, cb: F)
     where
         Self: Sized,
     {

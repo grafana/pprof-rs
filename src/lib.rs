@@ -17,7 +17,6 @@ pub const MAX_THREAD_NAME: usize = 16;
 // todo replace with kindasafe
 mod addr_validate;
 
-mod backtrace;
 mod collector;
 mod error;
 mod frames;
@@ -25,6 +24,7 @@ mod profiler;
 mod report;
 mod timer;
 mod shlib;
+pub mod framehop_unwinder;
 
 pub use self::addr_validate::validate;
 pub use self::collector::{Collector, HashCounter};

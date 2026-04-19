@@ -17,13 +17,12 @@ use spin::RwLock;
 ))]
 use findshlibs::{Segment, SharedLibrary, TargetSharedLibrary};
 
-use crate::backtrace::{Trace, TraceImpl};
 use crate::collector::Collector;
 use crate::error::{Error, Result};
-use crate::frames::UnresolvedFrames;
+use crate::frames::{Frame, UnresolvedFrames};
 use crate::report::ReportBuilder;
 use crate::timer::Timer;
-use crate::{MAX_DEPTH, MAX_THREAD_NAME};
+use crate::{framehop_unwinder, MAX_DEPTH, MAX_THREAD_NAME};
 
 pub(crate) static PROFILER: Lazy<RwLock<Result<Profiler>>> =
     Lazy::new(|| RwLock::new(Profiler::new()));
@@ -161,7 +160,7 @@ pub struct ProfilerGuard<'a> {
 fn trigger_lazy() {
     let _ = backtrace::Backtrace::new();
     let _profiler = PROFILER.read();
-    TraceImpl::init();
+    framehop_unwinder::Trace::init();
 }
 
 impl ProfilerGuard<'_> {
@@ -352,12 +351,12 @@ extern "C" fn perf_signal_handler(
                 }
             }
 
-            let mut bt: SmallVec<[<TraceImpl as Trace>::Frame; MAX_DEPTH]> =
+            let mut bt: SmallVec<[Frame; MAX_DEPTH]> =
                 SmallVec::with_capacity(MAX_DEPTH);
             let mut index = 0;
 
             let sample_timestamp: SystemTime = SystemTime::now();
-            TraceImpl::trace(ucontext, |frame| {
+            framehop_unwinder::Trace::trace(ucontext, |frame| {
                 if index < MAX_DEPTH {
                     bt.push(frame.clone());
                     index += 1;
@@ -498,7 +497,7 @@ impl Profiler {
     // This function has to be AS-safe
     pub fn sample(
         &mut self,
-        backtrace: SmallVec<[<TraceImpl as Trace>::Frame; MAX_DEPTH]>,
+        backtrace: SmallVec<[Frame; MAX_DEPTH]>,
         thread_name: &[u8],
         thread_id: u64,
         sample_timestamp: SystemTime,

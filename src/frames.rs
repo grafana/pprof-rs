@@ -1,17 +1,23 @@
 // Copyright 2019 TiKV Project Authors. Licensed under Apache-2.0.
 
-use std::fmt::{self, Debug, Display, Formatter};
+use std::fmt::{ Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::time::SystemTime;
 
 use smallvec::SmallVec;
 
-use crate::backtrace::{Frame, Trace, TraceImpl};
 use crate::{MAX_DEPTH, MAX_THREAD_NAME};
+
+
+#[derive(Clone, Debug)]
+pub struct Frame {
+    pub ip: usize,
+}
+
 
 #[derive(Clone)]
 pub struct UnresolvedFrames {
-    pub frames: SmallVec<[<TraceImpl as Trace>::Frame; MAX_DEPTH]>,
+    pub frames: SmallVec<[Frame; MAX_DEPTH]>,
     pub thread_name: [u8; MAX_THREAD_NAME],
     pub thread_name_length: usize,
     pub thread_id: u64,
@@ -39,7 +45,7 @@ impl Debug for UnresolvedFrames {
 
 impl UnresolvedFrames {
     pub fn new(
-        frames: SmallVec<[<TraceImpl as Trace>::Frame; MAX_DEPTH]>,
+        frames: SmallVec<[Frame; MAX_DEPTH]>,
         tn: &[u8],
         thread_id: u64,
         sample_timestamp: SystemTime,
@@ -65,18 +71,19 @@ impl PartialEq for UnresolvedFrames {
             false
         } else {
             Iterator::zip(frames1.iter(), frames2.iter())
-                .all(|(s1, s2)| s1.symbol_address() == s2.symbol_address())
+                .all(|(s1, s2)| s1.ip == s2.ip)
         }
     }
 }
 
 impl Eq for UnresolvedFrames {}
 
+//todo remove hashing all-together
 impl Hash for UnresolvedFrames {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.frames
             .iter()
-            .for_each(|frame| frame.symbol_address().hash(state));
+            .for_each(|frame| frame.ip.hash(state));
         self.thread_id.hash(state);
     }
 }
