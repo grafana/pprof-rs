@@ -150,7 +150,7 @@ impl Trace {
         // another thread while the signal handler is running. However, I'm not sure about other OSes, so
         // we use `try_write` to be safe instead of using `static mut` and `unsafe` directly.
         match UNWINDER.try_write() {
-            None => return,
+            None => (),
             Some(mut unwinder) => {
                 unwinder.iter_frames(ctx, cb);
             }

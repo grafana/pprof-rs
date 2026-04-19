@@ -1,7 +1,6 @@
 // Copyright 2019 TiKV Project Authors. Licensed under Apache-2.0.
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
 
 use spin::RwLock;
 
