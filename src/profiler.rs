@@ -156,7 +156,6 @@ pub struct ProfilerGuard<'a> {
 }
 
 fn trigger_lazy() {
-    let _ = backtrace::Backtrace::new();
     let _profiler = PROFILER.read();
     framehop_unwinder::Trace::init();
 }

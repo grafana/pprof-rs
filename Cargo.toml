@@ -19,7 +19,6 @@ large-depth = []
 huge-depth = []
 
 [dependencies]
-backtrace = { version = "0.3" }
 once_cell = "1.9"
 libc = "^0.2.66"
 log = "0.4"
