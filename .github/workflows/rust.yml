@@ -29,9 +29,6 @@ jobs:
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
 
-      - name: Remove pre-generated prost files to force regeneration
-        run: rm proto/*.rs
-
       - name: Run cargo clippy
         run: cargo clippy --all-targets
 
