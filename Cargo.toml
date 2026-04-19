@@ -17,7 +17,6 @@ name = "pprof"  # keep Rust crate name as `pprof` so existing `use pprof::` code
 default = ["cpp"]
 cpp = ["symbolic-demangle/cpp"]
 
-frame-pointer = []
 
 framehop-unwinder = ["framehop", "memmap2", "object"]
 perfmaps = ["arc-swap"]
@@ -51,12 +50,6 @@ arc-swap = { version = "1.7.1", optional = true }
 version = "12.1"
 default-features = false
 features = ["rust"]
-
-
-[build-dependencies]
-prost-build = { version = "0.12", optional = true }
-sha2 = { version = "0.10", optional = true }
-protobuf-codegen = { version = "3.7.2", optional = true }
 
 
 
