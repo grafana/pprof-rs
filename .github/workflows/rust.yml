@@ -158,5 +158,9 @@ jobs:
           toolchain: stable
           target: x86_64-apple-darwin
 
+      - name: Run sigprof_minimal (no pprof-rs, plain setitimer+sigaction)
+        run: cargo run --example sigprof_minimal --target x86_64-apple-darwin
+
       - name: Run sigbus_repro
+        if: always()
         run: cargo run --example sigbus_repro --target x86_64-apple-darwin
