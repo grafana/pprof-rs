@@ -303,6 +303,59 @@ impl Drop for ErrnoProtector {
     }
 }
 
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+#[allow(clippy::unnecessary_cast)]
+unsafe fn exp8_log(label: &[u8], rip: u64, rsp: u64, rbp: u64, mctx: u64) {
+    let mut buf = [0u8; 256];
+    let mut off = 0usize;
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    buf[off] = b'\n';
+    off += 1;
+    for &b in b"=== " {
+        buf[off] = b;
+        off += 1;
+    }
+    for &b in label {
+        buf[off] = b;
+        off += 1;
+    }
+    for &b in b" === rip=0x" {
+        buf[off] = b;
+        off += 1;
+    }
+    for i in (0..16).rev() {
+        buf[off] = HEX[((rip >> (i * 4)) & 0xf) as usize];
+        off += 1;
+    }
+    for &b in b" rsp=0x" {
+        buf[off] = b;
+        off += 1;
+    }
+    for i in (0..16).rev() {
+        buf[off] = HEX[((rsp >> (i * 4)) & 0xf) as usize];
+        off += 1;
+    }
+    for &b in b" rbp=0x" {
+        buf[off] = b;
+        off += 1;
+    }
+    for i in (0..16).rev() {
+        buf[off] = HEX[((rbp >> (i * 4)) & 0xf) as usize];
+        off += 1;
+    }
+    for &b in b" mctx=0x" {
+        buf[off] = b;
+        off += 1;
+    }
+    for i in (0..16).rev() {
+        buf[off] = HEX[((mctx >> (i * 4)) & 0xf) as usize];
+        off += 1;
+    }
+    buf[off] = b'\n';
+    off += 1;
+    libc::write(2, buf.as_ptr() as *const libc::c_void, off);
+}
+
 #[no_mangle]
 #[cfg_attr(
     not(all(any(
@@ -319,65 +372,46 @@ extern "C" fn perf_signal_handler(
     _siginfo: *mut libc::siginfo_t,
     ucontext: *mut libc::c_void,
 ) {
-    // === EXPERIMENT 7 (investigation, not a fix) ===
-    // Log the kernel-provided rip/rsp/rbp on the FIRST SIGPROF handler entry.
-    // This tells us:
-    //  - if kernel rip is in user code: crash is in sigreturn / post-handler.
-    //  - if kernel rip is already stack_base - 0x400: crash was already set up
-    //    by something that ran BEFORE the handler.
+    // === EXPERIMENT 8 (investigation, not a fix) ===
+    // Log the mcontext's saved rip BOTH at handler entry and right before
+    // the handler returns. Also dump a 64-byte window from [mcontext,
+    // mcontext+0x40) before return. If the saved rip in the mcontext is
+    // already a stack address at exit, something inside the handler call
+    // path corrupted it. If it is still a user-code address at exit, the
+    // corruption happens inside the kernel's sigreturn path.
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
     {
         use std::sync::atomic::{AtomicBool, Ordering};
         static LOGGED: AtomicBool = AtomicBool::new(false);
-        if LOGGED
+        let should_log = LOGGED
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok()
-            && !ucontext.is_null()
-        {
+            && !ucontext.is_null();
+        let mctx_ptr: u64 = if !ucontext.is_null() {
+            unsafe { (*(ucontext as *mut libc::ucontext_t)).uc_mcontext as u64 }
+        } else {
+            0
+        };
+        if should_log && mctx_ptr != 0 {
             unsafe {
-                let uc = ucontext as *mut libc::ucontext_t;
-                let mc = (*uc).uc_mcontext;
-                if !mc.is_null() {
-                    let ss = &(*mc).__ss;
-                    // Format a simple hex line manually (async-signal-safe).
-                    let mut buf = [0u8; 256];
-                    let mut off = 0usize;
-                    const HEX: &[u8; 16] = b"0123456789abcdef";
-                    let prefix: &[u8] = b"\n=== SIGPROF ENTRY === rip=0x";
-                    for &b in prefix {
-                        buf[off] = b;
-                        off += 1;
-                    }
-                    for i in (0..16).rev() {
-                        buf[off] = HEX[((ss.__rip >> (i * 4)) & 0xf) as usize];
-                        off += 1;
-                    }
-                    let mid: &[u8] = b" rsp=0x";
-                    for &b in mid {
-                        buf[off] = b;
-                        off += 1;
-                    }
-                    for i in (0..16).rev() {
-                        buf[off] = HEX[((ss.__rsp >> (i * 4)) & 0xf) as usize];
-                        off += 1;
-                    }
-                    let mid: &[u8] = b" rbp=0x";
-                    for &b in mid {
-                        buf[off] = b;
-                        off += 1;
-                    }
-                    for i in (0..16).rev() {
-                        buf[off] = HEX[((ss.__rbp >> (i * 4)) & 0xf) as usize];
-                        off += 1;
-                    }
-                    buf[off] = b'\n';
-                    off += 1;
-                    libc::write(2, buf.as_ptr() as *const libc::c_void, off);
-                }
+                let mc = mctx_ptr as *mut libc::__darwin_mcontext64;
+                let ss = &(*mc).__ss;
+                exp8_log(b"SIGPROF ENTRY", ss.__rip, ss.__rsp, ss.__rbp, mctx_ptr);
             }
         }
         let _ = ucontext;
-        let _errno = ErrnoProtector::new();
+        {
+            let _errno = ErrnoProtector::new();
+        }
+        // Re-read the saved rip/rsp/rbp from the kernel-provided mcontext
+        // just before returning from the handler.
+        if should_log && mctx_ptr != 0 {
+            unsafe {
+                let mc = mctx_ptr as *mut libc::__darwin_mcontext64;
+                let ss = &(*mc).__ss;
+                exp8_log(b"SIGPROF EXIT ", ss.__rip, ss.__rsp, ss.__rbp, mctx_ptr);
+            }
+        }
         return;
     }
 
