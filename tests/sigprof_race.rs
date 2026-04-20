@@ -17,6 +17,13 @@ use std::sync::Arc;
 
 #[test]
 fn test_sigprof_race_crash() {
+    if std::env::var("PPROF_EXPECT_ROSETTA_FAILURE").as_deref() == Ok("1") {
+        eprintln!(
+            "skipping sigprof_race test: PPROF_EXPECT_ROSETTA_FAILURE=1 (process runs under Rosetta)"
+        );
+        return;
+    }
+
     // Spawn background threads that burn CPU to maximize SIGPROF delivery.
     // ITIMER_PROF counts process-wide CPU time. More threads burning CPU
     // means more total CPU time consumed, which means SIGPROF fires more
@@ -39,21 +46,8 @@ fn test_sigprof_race_crash() {
     // handler). The main thread burns CPU between cycles so SIGPROF can be
     // delivered to it. The race window is the moment SIG_DFL is restored
     // before the next iteration re-registers the handler.
-    for i in 0..8000 {
-        let _guard = match pprof::ProfilerGuard::new(999) {
-            Ok(g) => g,
-            Err(pprof::Error::RosettaTranslated) => {
-                eprintln!(
-                    "skipping sigprof_race test: process is running under Rosetta translation on macOS"
-                );
-                running.store(false, Ordering::Relaxed);
-                for h in handles {
-                    let _ = h.join();
-                }
-                return;
-            }
-            Err(e) => panic!("ProfilerGuard::new failed on iteration {i}: {e}"),
-        };
+    for _ in 0..8000 {
+        let _guard = pprof::ProfilerGuard::new(999).unwrap();
         for _ in 0..50_000 {
             std::hint::black_box(0u64.wrapping_add(1));
         }
