@@ -250,17 +250,21 @@ fn test_sigprof_race_crash() {
         }));
     }
 
-    // Rapidly cycle the profiler. Each iteration creates a guard (registers
-    // signal handler, starts timer) and drops it (stops timer, unregisters
-    // handler). The main thread burns CPU between cycles so SIGPROF can be
-    // delivered to it. The race window is the moment SIG_DFL is restored
-    // before the next iteration re-registers the handler.
+    // === EXPERIMENT 3 (investigation, not a fix) ===
+    // Hoist the ProfilerGuard out of the loop so that register_signal_handler
+    // / unregister_signal_handler are each called exactly ONCE across the
+    // lifetime of the test. This removes the sigaction-churn race entirely.
+    //
+    // If SIGBUS still reproduces: the bug is NOT the sigaction register/
+    // unregister race — it's something in the steady-state signal delivery.
+    // If SIGBUS disappears: the race is the cause.
+    let _guard = pprof::ProfilerGuard::new(999).unwrap();
     for _ in 0..8000 {
-        let _guard = pprof::ProfilerGuard::new(999).unwrap();
         for _ in 0..50_000 {
             std::hint::black_box(0u64.wrapping_add(1));
         }
     }
+    drop(_guard);
 
     running.store(false, Ordering::Relaxed);
     for h in handles {
