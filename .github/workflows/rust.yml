@@ -161,6 +161,10 @@ jobs:
       - name: Run sigprof_minimal (no pprof-rs, plain setitimer+sigaction)
         run: cargo run --example sigprof_minimal --target x86_64-apple-darwin
 
+      - name: Run sigprof_cycle_noop (cycle sigaction+setitimer with noop handler)
+        if: always()
+        run: cargo run --example sigprof_cycle_noop --target x86_64-apple-darwin
+
       - name: Run sigbus_repro
         if: always()
         run: cargo run --example sigbus_repro --target x86_64-apple-darwin
