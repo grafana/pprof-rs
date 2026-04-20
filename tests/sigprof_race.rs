@@ -39,8 +39,21 @@ fn test_sigprof_race_crash() {
     // handler). The main thread burns CPU between cycles so SIGPROF can be
     // delivered to it. The race window is the moment SIG_DFL is restored
     // before the next iteration re-registers the handler.
-    for _ in 0..8000 {
-        let _guard = pprof::ProfilerGuard::new(999).unwrap();
+    for i in 0..8000 {
+        let _guard = match pprof::ProfilerGuard::new(999) {
+            Ok(g) => g,
+            Err(pprof::Error::RosettaTranslated) => {
+                eprintln!(
+                    "skipping sigprof_race test: process is running under Rosetta translation on macOS"
+                );
+                running.store(false, Ordering::Relaxed);
+                for h in handles {
+                    let _ = h.join();
+                }
+                return;
+            }
+            Err(e) => panic!("ProfilerGuard::new failed on iteration {i}: {e}"),
+        };
         for _ in 0..50_000 {
             std::hint::black_box(0u64.wrapping_add(1));
         }
