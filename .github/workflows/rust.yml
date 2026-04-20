@@ -165,6 +165,10 @@ jobs:
         if: always()
         run: cargo run --example sigprof_cycle_noop --target x86_64-apple-darwin
 
+      - name: Run sigprof_cycle_timer (install handler once, cycle only setitimer)
+        if: always()
+        run: cargo run --example sigprof_cycle_timer --target x86_64-apple-darwin
+
       - name: Run sigbus_repro
         if: always()
         run: cargo run --example sigbus_repro --target x86_64-apple-darwin
