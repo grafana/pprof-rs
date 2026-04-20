@@ -319,6 +319,41 @@ extern "C" fn perf_signal_handler(
     _siginfo: *mut libc::siginfo_t,
     ucontext: *mut libc::c_void,
 ) {
+    // === EXPERIMENT 4 step 1 (investigation, not a fix) ===
+    // On macOS, make the handler an immediate no-op to determine whether the
+    // SIGBUS is caused by the handler body (framehop unwind, collector, etc.)
+    // or by the signal-delivery / sigaction-race path itself.
+    //
+    // If SIGBUS disappears on macOS with this change → crash is in handler body.
+    // If SIGBUS persists on macOS with this change → crash is in signal
+    // delivery (kernel trampoline, sigaction race, or sigreturn).
+    #[cfg(target_os = "macos")]
+    {
+        let _ = ucontext;
+        let _errno = ErrnoProtector::new();
+        return;
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    perf_signal_handler_impl(_signal, _siginfo, ucontext);
+}
+
+#[no_mangle]
+#[cfg_attr(
+    not(all(any(
+        target_arch = "x86_64",
+        target_arch = "aarch64",
+        target_arch = "riscv64",
+        target_arch = "loongarch64"
+    ))),
+    allow(unused_variables)
+)]
+#[allow(clippy::unnecessary_cast, dead_code)]
+extern "C" fn perf_signal_handler_impl(
+    _signal: c_int,
+    _siginfo: *mut libc::siginfo_t,
+    ucontext: *mut libc::c_void,
+) {
     let _errno = ErrnoProtector::new();
 
     if let Some(mut guard) = PROFILER.try_write() {
