@@ -1,3 +1,9 @@
+#![cfg(all(
+    feature = "framehop-unwinder",
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+    any(target_os = "linux", target_os = "macos"),
+))]
+
 // Regression test for the SIGPROF race condition fixed in:
 // https://github.com/grafana/pprof-rs/commit/978d3aa248fa19be6cc6f8488f1472cea98bf8a2
 //
@@ -7,7 +13,13 @@
 // (during rapid start/stop cycles), the process crashes.
 //
 // Run with:
-//   cargo test --test sigprof_race -- --test-threads 1
+//   cargo test --features framehop-unwinder --test sigprof_race -- --test-threads 1
+//
+// This test only compiles under the framehop unwinder. The default
+// backtrace-rs unwinder on macOS has separate async-signal-safety issues
+// (libunwind/dyld reentrancy) that mask the signal-handler-registration
+// race this test is meant to catch. See
+// https://github.com/grafana/pyroscope-pprof-rs/issues/28.
 //
 // Without the fix, this test crashes the process with SIGPROF.
 // With the fix (SIG_IGN instead of SIG_DFL restore), it completes cleanly.

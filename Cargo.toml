@@ -98,5 +98,10 @@ name = "addr_validate"
 path = "benches/addr_validate.rs"
 harness = false
 
+[[test]]
+name = "sigprof_race"
+path = "tests/sigprof_race.rs"
+required-features = ["framehop-unwinder"]
+
 [package.metadata.docs.rs]
 all-features = true
