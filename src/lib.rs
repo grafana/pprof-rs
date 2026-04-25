@@ -21,7 +21,6 @@ mod error;
 pub mod framehop_unwinder;
 mod frames;
 mod profiler;
-mod report;
 mod shlib;
 mod timer;
 
@@ -29,4 +28,4 @@ pub use self::addr_validate::validate;
 pub use self::collector::{Collector, HashCounter};
 pub use self::error::{Error, Result};
 pub use self::profiler::{ProfilerGuard, ProfilerGuardBuilder};
-pub use self::report::{ReportBuilder, UnresolvedReport};
+

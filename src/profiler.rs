@@ -20,7 +20,6 @@ use findshlibs::{Segment, SharedLibrary, TargetSharedLibrary};
 use crate::collector::Collector;
 use crate::error::{Error, Result};
 use crate::frames::{Frame, UnresolvedFrames};
-use crate::report::ReportBuilder;
 use crate::timer::Timer;
 use crate::{MAX_DEPTH, MAX_THREAD_NAME, framehop_unwinder};
 
@@ -164,14 +163,6 @@ impl ProfilerGuard<'_> {
     /// Start profiling with given sample frequency.
     pub fn new(frequency: c_int) -> Result<ProfilerGuard<'static>> {
         ProfilerGuardBuilder::default().frequency(frequency).build()
-    }
-
-    /// Generate a report
-    pub fn report(&self) -> ReportBuilder<'_> {
-        ReportBuilder::new(
-            self.profiler,
-            self.timer.timing(),
-        )
     }
 }
 
