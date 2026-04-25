@@ -140,7 +140,7 @@ impl ProfilerGuardBuilder {
                 match profiler.start() {
                     Ok(()) => Ok(ProfilerGuard::<'static> {
                         profiler: &PROFILER,
-                        timer: Timer::new(self.frequency),
+                        timer: Some(Timer::new(self.frequency)),
                     }),
                     Err(err) => Err(err),
                 }
@@ -152,7 +152,7 @@ impl ProfilerGuardBuilder {
 /// RAII structure used to stop profiling when dropped. It is the only interface to access profiler.
 pub struct ProfilerGuard<'a> {
     profiler: &'a RwLock<Result<Profiler>>,
-    timer: Timer,
+    timer: Option<Timer>,
 }
 
 fn trigger_lazy() {
@@ -170,14 +170,17 @@ impl ProfilerGuard<'_> {
     pub fn report(&self) -> ReportBuilder<'_> {
         ReportBuilder::new(
             self.profiler,
-            self.timer.timing(),
+            self.timer
+                .as_ref()
+                .expect("profiler timer is active")
+                .timing(),
         )
     }
 }
 
 impl Drop for ProfilerGuard<'_> {
     fn drop(&mut self) {
-        // drop(&self.timer); //todo
+        drop(self.timer.take());
 
         match self.profiler.write().as_mut() {
             Err(_) => {}
