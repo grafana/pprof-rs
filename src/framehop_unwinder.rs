@@ -135,10 +135,7 @@ impl Trace {
         let _ = UNWINDER.read();
     }
 
-    pub fn trace<F: FnMut(&Frame) -> bool>(ctx: *mut c_void, cb: F)
-    where
-        Self: Sized,
-    {
+    pub fn trace<F: FnMut(&Frame) -> bool>(ctx: *mut c_void, cb: F) {
         // For Linux, this `try_write` should always succeed, because `SIGPROF` will never be delivered to
         // another thread while the signal handler is running. However, I'm not sure about other OSes, so
         // we use `try_write` to be safe instead of using `static mut` and `unsafe` directly.

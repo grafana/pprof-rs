@@ -24,5 +24,5 @@ mod timer;
 pub use self::addr_validate::validate;
 pub use self::collector::{Collector, HashCounter};
 pub use self::error::{Error, Result};
+pub use self::frames::Frame;
 pub use self::profiler::{ProfilerGuard, ProfilerGuardBuilder};
-
