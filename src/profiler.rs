@@ -17,10 +17,10 @@ use spin::RwLock;
 ))]
 use findshlibs::{Segment, SharedLibrary, TargetSharedLibrary};
 
-use crate::collector::Collector;
+use crate::collector::{Collector, Entry};
 use crate::error::{Error, Result};
 use crate::frames::{Frame, UnresolvedFrames};
-use crate::timer::Timer;
+use crate::timer::{ReportTiming, Timer};
 use crate::{MAX_DEPTH, framehop_unwinder};
 
 pub(crate) static PROFILER: Lazy<RwLock<Result<Profiler>>> =
@@ -164,11 +164,32 @@ impl ProfilerGuard<'_> {
     pub fn new(frequency: c_int) -> Result<ProfilerGuard<'static>> {
         ProfilerGuardBuilder::default().frequency(frequency).build()
     }
+
+    #[inline]
+    pub fn reset<F>(&self, f:F) -> Result<ReportTiming>
+    where
+        Self: Sized,
+        F: FnMut(&Entry<UnresolvedFrames>)
+    {
+        match self.profiler.write().as_mut() {
+            Err(_err) => { //todo why is this a Result?
+                Err(Error::CreatingError)
+            }
+            Ok(profiler) => {
+                profiler.data.try_iter()?.for_each(f);
+
+                profiler.clear()?;
+
+                Ok(self.timer.timing())
+            }
+        }
+    }
+
 }
 
 impl Drop for ProfilerGuard<'_> {
     fn drop(&mut self) {
-        // drop(&self.timer); //todo
+        // drop(&self.timer); //todo DO NOT MERGE this
 
         match self.profiler.write().as_mut() {
             Err(_) => {}
@@ -443,6 +464,9 @@ impl Profiler {
 
         if let Ok(()) = self.data.add(frames, 1) {}
     }
+
+
+
 }
 
 #[cfg(test)]
