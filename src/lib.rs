@@ -10,9 +10,6 @@ pub const MAX_DEPTH: usize = 512;
 #[cfg(not(any(feature = "large-depth", feature = "huge-depth")))]
 pub const MAX_DEPTH: usize = 128;
 
-/// Define the MAX supported thread name length. TODO: make this variable mutable.
-pub const MAX_THREAD_NAME: usize = 16;
-
 // todo replace with kindasafe
 mod addr_validate;
 

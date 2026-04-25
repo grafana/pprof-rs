@@ -21,7 +21,7 @@ use crate::collector::Collector;
 use crate::error::{Error, Result};
 use crate::frames::{Frame, UnresolvedFrames};
 use crate::timer::Timer;
-use crate::{MAX_DEPTH, MAX_THREAD_NAME, framehop_unwinder};
+use crate::{MAX_DEPTH, framehop_unwinder};
 
 pub(crate) static PROFILER: Lazy<RwLock<Result<Profiler>>> =
     Lazy::new(|| RwLock::new(Profiler::new()));
@@ -180,46 +180,6 @@ impl Drop for ProfilerGuard<'_> {
     }
 }
 
-fn write_thread_name_fallback(current_thread: libc::pthread_t, name: &mut [libc::c_char]) {
-    let mut len = 0;
-    let mut base = 1;
-
-    while current_thread as u128 > base && len < MAX_THREAD_NAME {
-        base *= 10;
-        len += 1;
-    }
-
-    let mut index = 0;
-    while index < len && base > 1 {
-        base /= 10;
-
-        name[index] = match (48 + (current_thread as u128 / base) % 10).try_into() {
-            Ok(digit) => digit,
-            Err(_) => {
-                log::error!("fail to convert thread_id to string");
-                0
-            }
-        };
-
-        index += 1;
-    }
-}
-
-#[cfg(not(all(any(target_os = "linux", target_os = "macos"), target_env = "gnu")))]
-fn write_thread_name(current_thread: libc::pthread_t, name: &mut [libc::c_char]) {
-    write_thread_name_fallback(current_thread, name);
-}
-
-#[cfg(all(any(target_os = "linux", target_os = "macos"), target_env = "gnu"))]
-fn write_thread_name(current_thread: libc::pthread_t, name: &mut [libc::c_char]) {
-    let name_ptr = name as *mut [libc::c_char] as *mut libc::c_char;
-    let ret = unsafe { libc::pthread_getname_np(current_thread, name_ptr, MAX_THREAD_NAME) };
-
-    if ret != 0 {
-        write_thread_name_fallback(current_thread, name);
-    }
-}
-
 struct ErrnoProtector(libc::c_int);
 
 impl ErrnoProtector {
@@ -342,7 +302,6 @@ extern "C" fn perf_signal_handler(
             let mut bt: SmallVec<[Frame; MAX_DEPTH]> = SmallVec::with_capacity(MAX_DEPTH);
             let mut index = 0;
 
-            let sample_timestamp: SystemTime = SystemTime::now();
             framehop_unwinder::Trace::trace(ucontext, |frame| {
                 if index < MAX_DEPTH {
                     bt.push(frame.clone());
@@ -353,14 +312,8 @@ extern "C" fn perf_signal_handler(
                 }
             });
 
-            let current_thread = unsafe { libc::pthread_self() };
-            let mut name = [0; MAX_THREAD_NAME];
-            let name_ptr = &mut name as *mut [libc::c_char] as *mut libc::c_char;
 
-            write_thread_name(current_thread, &mut name);
-
-            let name = unsafe { std::ffi::CStr::from_ptr(name_ptr) };
-            profiler.sample(bt, name.to_bytes(), current_thread as u64, sample_timestamp);
+            profiler.sample(bt);
         }
     }
 }
@@ -484,11 +437,8 @@ impl Profiler {
     pub fn sample(
         &mut self,
         backtrace: SmallVec<[Frame; MAX_DEPTH]>,
-        thread_name: &[u8],
-        thread_id: u64,
-        sample_timestamp: SystemTime,
     ) {
-        let frames = UnresolvedFrames::new(backtrace, thread_name, thread_id, sample_timestamp);
+        let frames = UnresolvedFrames::new(backtrace);
         self.sample_counter += 1;
 
         if let Ok(()) = self.data.add(frames, 1) {}
