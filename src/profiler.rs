@@ -1,10 +1,10 @@
 // Copyright 2019 TiKV Project Authors. Licensed under Apache-2.0.
 
-use std::os::raw::c_int;
 use nix::sys::signal;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
 use spin::RwLock;
+use std::os::raw::c_int;
 
 #[cfg(any(
     target_arch = "x86_64",
@@ -25,8 +25,6 @@ pub(crate) static PROFILER: Lazy<RwLock<Result<Profiler>>> =
 
 pub struct Profiler {
     pub(crate) data: Collector<UnresolvedFrames>,
-    sample_counter: i32,
-
     old_sigaction: Option<signal::SigAction>,
     running: bool,
 
@@ -163,25 +161,30 @@ impl ProfilerGuard<'_> {
     }
 
     #[inline]
-    pub fn reset<F>(&self, f:F) -> Result<ReportTiming>
+    pub fn reset<F>(&self, mut f: F) -> Result<ReportTiming>
     where
         Self: Sized,
-        F: FnMut(&Entry<UnresolvedFrames>)
+        F: FnMut(&Entry<UnresolvedFrames>),
     {
-        match self.profiler.write().as_mut() {
-            Err(_err) => { //todo why is this a Result?
-                Err(Error::CreatingError)
+        let data = {
+            let mut guard = self.profiler.write();
+            match guard.as_mut() {
+                Err(err) => {
+                    log::error!("Error in creating profiler: {}", err);
+                    return Err(Error::CreatingError);
+                }
+                Ok(profiler) => std::mem::replace(&mut profiler.data, Collector::new()?),
             }
+        };
+
+        match data.try_iter() {
+            Err(err) => Err(err.into()),
             Ok(profiler) => {
-                profiler.data.try_iter()?.for_each(f);
-
-                profiler.clear()?;
-
+                profiler.for_each(|entry| f(entry));
                 Ok(self.timer.timing())
             }
         }
     }
-
 }
 
 impl Drop for ProfilerGuard<'_> {
@@ -330,8 +333,8 @@ extern "C" fn perf_signal_handler(
                 }
             });
 
-
-            profiler.sample(bt);
+            let current_thread = unsafe { libc::pthread_self() };
+            profiler.sample(bt, current_thread as u64);
         }
     }
 }
@@ -340,7 +343,6 @@ impl Profiler {
     fn new() -> Result<Self> {
         Ok(Profiler {
             data: Collector::new()?,
-            sample_counter: 0,
             old_sigaction: None,
             running: false,
 
@@ -384,7 +386,6 @@ impl Profiler {
     }
 
     fn init(&mut self) -> Result<()> {
-        self.sample_counter = 0;
         self.data = Collector::new()?;
         self.running = false;
 
@@ -404,7 +405,6 @@ impl Profiler {
     /// without recreating the ProfilerGuard. See https://github.com/grafana/pyroscope-rs/issues/399
     pub fn clear(&mut self) -> Result<()> {
         if self.running {
-            self.sample_counter = 0;
             self.data.clear()?;
             Ok(())
         } else {
@@ -452,18 +452,11 @@ impl Profiler {
     }
 
     // This function has to be AS-safe
-    pub fn sample(
-        &mut self,
-        backtrace: SmallVec<[Frame; MAX_DEPTH]>,
-    ) {
-        let frames = UnresolvedFrames::new(backtrace);
-        self.sample_counter += 1;
+    pub fn sample(&mut self, backtrace: SmallVec<[Frame; MAX_DEPTH]>, thread_id: u64) {
+        let frames = UnresolvedFrames::new(backtrace, thread_id);
 
         if let Ok(()) = self.data.add(frames, 1) {}
     }
-
-
-
 }
 
 #[cfg(test)]

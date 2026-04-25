@@ -22,7 +22,8 @@ mod shlib;
 mod timer;
 
 pub use self::addr_validate::validate;
-pub use self::collector::{Collector, HashCounter};
+pub use self::collector::{Collector, Entry, HashCounter};
 pub use self::error::{Error, Result};
+pub use self::frames::{Frame, UnresolvedFrames};
 pub use self::profiler::{ProfilerGuard, ProfilerGuardBuilder};
-
+pub use self::timer::ReportTiming;
