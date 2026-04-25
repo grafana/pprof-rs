@@ -1,9 +1,6 @@
 // Copyright 2019 TiKV Project Authors. Licensed under Apache-2.0.
 
-use std::convert::TryInto;
 use std::os::raw::c_int;
-use std::time::SystemTime;
-
 use nix::sys::signal;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
