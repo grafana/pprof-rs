@@ -23,34 +23,21 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9
         with:
-          toolchain: "1.74.0"
+          toolchain: "1.85.0"
           components: rustfmt, clippy
-
-      - name: Install protobuf compiler
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
 
-      - name: Remove pre-generated prost files to force regeneration
-        run: rm proto/*.rs
-
-      - name: Run cargo clippy prost
-        run: cargo clippy --all-targets --features flamegraph,prost-codec -- -D warnings
-
-      - name: Run cargo clippy protobuf
-        run: cargo clippy --all-targets --features flamegraph,protobuf-codec -- -D warnings
-
-      - name: Check if the prost file committed to git is up-to-date
-        run: |
-          git diff --no-ext-diff --exit-code
+      - name: Run cargo clippy
+        run: cargo clippy --all-targets
 
   build:
     name: Build
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        toolchain: [stable, nightly, 1.74.0]
+        toolchain: [stable, nightly, 1.85.0]
         target:
           [
             x86_64-unknown-linux-gnu,
@@ -85,15 +72,8 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
           target: ${{ matrix.target }}
 
-      - name: Run cargo build prost
-        run: cargo build --features flamegraph,prost-codec --target ${{ matrix.target }}
-
-      - name: Run cargo build protobuf
-        run: cargo build --features flamegraph,protobuf-codec --target ${{ matrix.target }}
-
-      - name: Run cargo build frame pointer
-        if: ${{ matrix.toolchain == 'nightly' && matrix.os == 'ubuntu-latest' }}
-        run: cargo build --no-default-features --features frame-pointer --target ${{ matrix.target }}
+      - name: Run cargo build
+        run: cargo build --target ${{ matrix.target }}
 
   test:
     name: Test
@@ -133,11 +113,5 @@ jobs:
         name: Install musl
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      - name: Run cargo test prost
-        run: cargo test --features flamegraph,prost-codec --target ${{ matrix.target }} -- --test-threads 1
-
-      - name: Run cargo test protobuf
-        run: cargo test --features flamegraph,protobuf-codec --target ${{ matrix.target }} -- --test-threads 1
-
-      - name: Run cargo test framehop
-        run: cargo test --features flamegraph,protobuf-codec,framehop-unwinder --target ${{ matrix.target }} -- --test-threads 1
+      - name: Run cargo test
+        run: cargo test --target ${{ matrix.target }} -- --test-threads 1

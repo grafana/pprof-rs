@@ -1,13 +1,10 @@
 // Copyright 2019 TiKV Project Authors. Licensed under Apache-2.0.
 
-use std::convert::TryInto;
-use std::os::raw::c_int;
-use std::time::SystemTime;
-
 use nix::sys::signal;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
 use spin::RwLock;
+use std::os::raw::c_int;
 
 #[cfg(any(
     target_arch = "x86_64",
@@ -17,13 +14,11 @@ use spin::RwLock;
 ))]
 use findshlibs::{Segment, SharedLibrary, TargetSharedLibrary};
 
-use crate::backtrace::{Trace, TraceImpl};
-use crate::collector::Collector;
+use crate::collector::{Collector, Entry};
 use crate::error::{Error, Result};
-use crate::frames::UnresolvedFrames;
-use crate::report::ReportBuilder;
-use crate::timer::Timer;
-use crate::{MAX_DEPTH, MAX_THREAD_NAME};
+use crate::frames::{Frame, UnresolvedFrames};
+use crate::timer::{ReportTiming, Timer};
+use crate::{MAX_DEPTH, framehop_unwinder};
 
 pub(crate) static PROFILER: Lazy<RwLock<Result<Profiler>>> =
     Lazy::new(|| RwLock::new(Profiler::new()));
@@ -34,9 +29,6 @@ pub struct Profiler {
 
     old_sigaction: Option<signal::SigAction>,
     running: bool,
-
-    #[cfg(feature = "frame-pointer")]
-    on_stack: bool,
 
     #[cfg(any(
         target_arch = "x86_64",
@@ -50,9 +42,6 @@ pub struct Profiler {
 #[derive(Clone)]
 pub struct ProfilerGuardBuilder {
     frequency: c_int,
-
-    #[cfg(feature = "frame-pointer")]
-    on_stack: bool,
 
     #[cfg(any(
         target_arch = "x86_64",
@@ -68,9 +57,6 @@ impl Default for ProfilerGuardBuilder {
         ProfilerGuardBuilder {
             frequency: 99,
 
-            #[cfg(feature = "frame-pointer")]
-            on_stack: false,
-
             #[cfg(any(
                 target_arch = "x86_64",
                 target_arch = "aarch64",
@@ -85,21 +71,6 @@ impl Default for ProfilerGuardBuilder {
 impl ProfilerGuardBuilder {
     pub fn frequency(self, frequency: c_int) -> Self {
         Self { frequency, ..self }
-    }
-
-    #[cfg(feature = "frame-pointer")]
-    /// Sets whether to use an alternate signal stack via `SA_ONSTACK`.
-    ///
-    /// This is only available and only works correctly when the `frame-pointer` feature is enabled.
-    ///
-    /// The `backtrace-rs` unwinder ignores the signal context and unwinds the current stack. Using
-    /// an alternate stack with it would produce meaningless results. The `frame-pointer` unwinder,
-    /// however, uses the provided `ucontext` to correctly walk the original application stack.
-    ///
-    /// This should be enabled when the profiler is used in an environment
-    /// with small stacks (e.g., inside a Go program) to prevent stack overflow.
-    pub fn on_stack(self, on_stack: bool) -> Self {
-        Self { on_stack, ..self }
     }
 
     #[cfg(any(
@@ -152,11 +123,6 @@ impl ProfilerGuardBuilder {
                 Err(Error::CreatingError)
             }
             Ok(profiler) => {
-                #[cfg(feature = "frame-pointer")]
-                {
-                    profiler.on_stack = self.on_stack;
-                }
-
                 #[cfg(any(
                     target_arch = "x86_64",
                     target_arch = "aarch64",
@@ -170,7 +136,7 @@ impl ProfilerGuardBuilder {
                 match profiler.start() {
                     Ok(()) => Ok(ProfilerGuard::<'static> {
                         profiler: &PROFILER,
-                        timer: Some(Timer::new(self.frequency)),
+                        timer: Timer::new(self.frequency),
                     }),
                     Err(err) => Err(err),
                 }
@@ -182,13 +148,12 @@ impl ProfilerGuardBuilder {
 /// RAII structure used to stop profiling when dropped. It is the only interface to access profiler.
 pub struct ProfilerGuard<'a> {
     profiler: &'a RwLock<Result<Profiler>>,
-    timer: Option<Timer>,
+    timer: Timer,
 }
 
 fn trigger_lazy() {
-    let _ = backtrace::Backtrace::new();
     let _profiler = PROFILER.read();
-    TraceImpl::init();
+    framehop_unwinder::Trace::init();
 }
 
 impl ProfilerGuard<'_> {
@@ -197,18 +162,31 @@ impl ProfilerGuard<'_> {
         ProfilerGuardBuilder::default().frequency(frequency).build()
     }
 
-    /// Generate a report
-    pub fn report(&self) -> ReportBuilder<'_> {
-        ReportBuilder::new(
-            self.profiler,
-            self.timer.as_ref().map(Timer::timing).unwrap_or_default(),
-        )
+    #[inline]
+    pub fn reset<F>(&self, f: F) -> Result<ReportTiming>
+    where
+        Self: Sized,
+        F: FnMut(&Entry<UnresolvedFrames>),
+    {
+        match self.profiler.write().as_mut() {
+            Err(_err) => {
+                //todo why is this a Result?
+                Err(Error::CreatingError)
+            }
+            Ok(profiler) => {
+                profiler.data.try_iter()?.for_each(f);
+
+                profiler.clear()?;
+
+                Ok(self.timer.timing())
+            }
+        }
     }
 }
 
-impl<'a> Drop for ProfilerGuard<'a> {
+impl Drop for ProfilerGuard<'_> {
     fn drop(&mut self) {
-        drop(self.timer.take());
+        // drop(&self.timer); //todo DO NOT MERGE this
 
         match self.profiler.write().as_mut() {
             Err(_) => {}
@@ -217,46 +195,6 @@ impl<'a> Drop for ProfilerGuard<'a> {
                 Err(err) => log::error!("error while stopping profiler {}", err),
             },
         }
-    }
-}
-
-fn write_thread_name_fallback(current_thread: libc::pthread_t, name: &mut [libc::c_char]) {
-    let mut len = 0;
-    let mut base = 1;
-
-    while current_thread as u128 > base && len < MAX_THREAD_NAME {
-        base *= 10;
-        len += 1;
-    }
-
-    let mut index = 0;
-    while index < len && base > 1 {
-        base /= 10;
-
-        name[index] = match (48 + (current_thread as u128 / base) % 10).try_into() {
-            Ok(digit) => digit,
-            Err(_) => {
-                log::error!("fail to convert thread_id to string");
-                0
-            }
-        };
-
-        index += 1;
-    }
-}
-
-#[cfg(not(all(any(target_os = "linux", target_os = "macos"), target_env = "gnu")))]
-fn write_thread_name(current_thread: libc::pthread_t, name: &mut [libc::c_char]) {
-    write_thread_name_fallback(current_thread, name);
-}
-
-#[cfg(all(any(target_os = "linux", target_os = "macos"), target_env = "gnu"))]
-fn write_thread_name(current_thread: libc::pthread_t, name: &mut [libc::c_char]) {
-    let name_ptr = name as *mut [libc::c_char] as *mut libc::c_char;
-    let ret = unsafe { libc::pthread_getname_np(current_thread, name_ptr, MAX_THREAD_NAME) };
-
-    if ret != 0 {
-        write_thread_name_fallback(current_thread, name);
     }
 }
 
@@ -303,7 +241,7 @@ impl Drop for ErrnoProtector {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[cfg_attr(
     not(all(any(
         target_arch = "x86_64",
@@ -379,20 +317,10 @@ extern "C" fn perf_signal_handler(
                 }
             }
 
-            let mut bt: SmallVec<[<TraceImpl as Trace>::Frame; MAX_DEPTH]> =
-                SmallVec::with_capacity(MAX_DEPTH);
+            let mut bt: SmallVec<[Frame; MAX_DEPTH]> = SmallVec::with_capacity(MAX_DEPTH);
             let mut index = 0;
 
-            let sample_timestamp: SystemTime = SystemTime::now();
-            TraceImpl::trace(ucontext, |frame| {
-                #[cfg(feature = "frame-pointer")]
-                {
-                    let ip = crate::backtrace::Frame::ip(frame);
-                    if profiler.is_blocklisted(ip) {
-                        return false;
-                    }
-                }
-
+            framehop_unwinder::Trace::trace(ucontext, |frame| {
                 if index < MAX_DEPTH {
                     bt.push(frame.clone());
                     index += 1;
@@ -402,14 +330,7 @@ extern "C" fn perf_signal_handler(
                 }
             });
 
-            let current_thread = unsafe { libc::pthread_self() };
-            let mut name = [0; MAX_THREAD_NAME];
-            let name_ptr = &mut name as *mut [libc::c_char] as *mut libc::c_char;
-
-            write_thread_name(current_thread, &mut name);
-
-            let name = unsafe { std::ffi::CStr::from_ptr(name_ptr) };
-            profiler.sample(bt, name.to_bytes(), current_thread as u64, sample_timestamp);
+            profiler.sample(bt);
         }
     }
 }
@@ -421,9 +342,6 @@ impl Profiler {
             sample_counter: 0,
             old_sigaction: None,
             running: false,
-
-            #[cfg(feature = "frame-pointer")]
-            on_stack: false,
 
             #[cfg(any(
                 target_arch = "x86_64",
@@ -510,15 +428,6 @@ impl Profiler {
         // SA_RESTART will only restart a syscall when it's safe to do so,
         // e.g. when it's a blocking read(2) or write(2). See man 7 signal.
         let flags = signal::SaFlags::SA_SIGINFO | signal::SaFlags::SA_RESTART;
-        #[cfg(feature = "frame-pointer")]
-        let flags = if self.on_stack {
-            // SA_ONSTACK will deliver the signal on an alternate stack. This is crucial
-            // to prevent a stack overflow if the signal arrives at a thread with
-            // a small stack, which is common when use pprof-rs in Go runtimes.
-            flags | signal::SaFlags::SA_ONSTACK
-        } else {
-            flags
-        };
         let sigaction = signal::SigAction::new(handler, flags, signal::SigSet::empty());
         let old_action = unsafe { signal::sigaction(signal::SIGPROF, &sigaction) }?;
         self.old_sigaction = Some(old_action);
@@ -542,14 +451,8 @@ impl Profiler {
     }
 
     // This function has to be AS-safe
-    pub fn sample(
-        &mut self,
-        backtrace: SmallVec<[<TraceImpl as Trace>::Frame; MAX_DEPTH]>,
-        thread_name: &[u8],
-        thread_id: u64,
-        sample_timestamp: SystemTime,
-    ) {
-        let frames = UnresolvedFrames::new(backtrace, thread_name, thread_id, sample_timestamp);
+    pub fn sample(&mut self, backtrace: SmallVec<[Frame; MAX_DEPTH]>) {
+        let frames = UnresolvedFrames::new(backtrace);
         self.sample_counter += 1;
 
         if let Ok(()) = self.data.add(frames, 1) {}

@@ -1,10 +1,11 @@
+use crate::frames::Frame;
+use crate::shlib;
 use framehop::{
     CacheNative, MustNotAllocateDuringUnwind, UnwindRegsNative, Unwinder, UnwinderNative,
 };
 use libc::{c_void, ucontext_t};
 use once_cell::sync::Lazy;
 use spin::RwLock;
-mod shlib;
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 fn get_regs_from_context(ucontext: *mut c_void) -> Option<(UnwindRegsNative, u64)> {
@@ -126,45 +127,15 @@ fn read_stack(addr: u64) -> Result<u64, ()> {
 
 static UNWINDER: Lazy<RwLock<FramehopUnwinder>> =
     Lazy::new(|| RwLock::new(FramehopUnwinder::new()));
-#[derive(Clone, Debug)]
-pub struct Frame {
-    pub ip: usize,
-}
-
-extern "C" {
-    fn _Unwind_FindEnclosingFunction(pc: *mut c_void) -> *mut c_void;
-
-}
-
-impl super::Frame for Frame {
-    type S = backtrace::Symbol;
-    fn ip(&self) -> usize {
-        self.ip
-    }
-
-    fn symbol_address(&self) -> *mut c_void {
-        if cfg!(target_os = "macos") || cfg!(target_os = "ios") {
-            self.ip as *mut c_void
-        } else {
-            unsafe { _Unwind_FindEnclosingFunction(self.ip as *mut c_void) }
-        }
-    }
-
-    fn resolve_symbol<F: FnMut(&Self::S)>(&self, cb: F) {
-        backtrace::resolve(self.ip as *mut c_void, cb);
-    }
-}
 
 pub struct Trace;
 
-impl super::Trace for Trace {
-    type Frame = Frame;
-
-    fn init() {
+impl Trace {
+    pub fn init() {
         let _ = UNWINDER.read();
     }
 
-    fn trace<F: FnMut(&Self::Frame) -> bool>(ctx: *mut c_void, cb: F)
+    pub fn trace<F: FnMut(&Frame) -> bool>(ctx: *mut c_void, cb: F)
     where
         Self: Sized,
     {
@@ -172,7 +143,7 @@ impl super::Trace for Trace {
         // another thread while the signal handler is running. However, I'm not sure about other OSes, so
         // we use `try_write` to be safe instead of using `static mut` and `unsafe` directly.
         match UNWINDER.try_write() {
-            None => return,
+            None => (),
             Some(mut unwinder) => {
                 unwinder.iter_frames(ctx, cb);
             }

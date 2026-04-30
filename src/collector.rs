@@ -266,6 +266,7 @@ pub struct Collector<T: Hash + Eq + 'static> {
     temp_array: TempFdArray<Entry<T>>,
 }
 
+// TODO remove Debug
 impl<T: Hash + Eq + Default + Debug + 'static> Collector<T> {
     pub fn new() -> std::io::Result<Self> {
         Ok(Self {
