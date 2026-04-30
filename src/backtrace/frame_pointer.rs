@@ -111,7 +111,7 @@ impl super::Trace for Trace {
                 break;
             }
 
-            if !validate(frame_pointer as *const libc::c_void) {
+            if !validate(frame_pointer) {
                 break;
             }
             last_frame_pointer = frame_pointer;
