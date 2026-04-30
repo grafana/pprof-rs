@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 
 use smallvec::SmallVec;
 
-use crate::{MAX_DEPTH};
+use crate::MAX_DEPTH;
 
 #[derive(Clone, Debug)]
 pub struct Frame {
@@ -20,9 +20,7 @@ pub struct UnresolvedFrames {
 impl Default for UnresolvedFrames {
     fn default() -> Self {
         let frames = SmallVec::with_capacity(MAX_DEPTH);
-        Self {
-            frames,
-        }
+        Self { frames }
     }
 }
 
@@ -33,12 +31,8 @@ impl Debug for UnresolvedFrames {
 }
 
 impl UnresolvedFrames {
-    pub fn new(
-        frames: SmallVec<[Frame; MAX_DEPTH]>,
-    ) -> Self {
-        Self {
-            frames,
-        }
+    pub fn new(frames: SmallVec<[Frame; MAX_DEPTH]>) -> Self {
+        Self { frames }
     }
 }
 

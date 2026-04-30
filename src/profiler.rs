@@ -1,10 +1,10 @@
 // Copyright 2019 TiKV Project Authors. Licensed under Apache-2.0.
 
-use std::os::raw::c_int;
 use nix::sys::signal;
 use once_cell::sync::Lazy;
 use smallvec::SmallVec;
 use spin::RwLock;
+use std::os::raw::c_int;
 
 #[cfg(any(
     target_arch = "x86_64",
@@ -163,13 +163,14 @@ impl ProfilerGuard<'_> {
     }
 
     #[inline]
-    pub fn reset<F>(&self, f:F) -> Result<ReportTiming>
+    pub fn reset<F>(&self, f: F) -> Result<ReportTiming>
     where
         Self: Sized,
-        F: FnMut(&Entry<UnresolvedFrames>)
+        F: FnMut(&Entry<UnresolvedFrames>),
     {
         match self.profiler.write().as_mut() {
-            Err(_err) => { //todo why is this a Result?
+            Err(_err) => {
+                //todo why is this a Result?
                 Err(Error::CreatingError)
             }
             Ok(profiler) => {
@@ -181,7 +182,6 @@ impl ProfilerGuard<'_> {
             }
         }
     }
-
 }
 
 impl Drop for ProfilerGuard<'_> {
@@ -330,7 +330,6 @@ extern "C" fn perf_signal_handler(
                 }
             });
 
-
             profiler.sample(bt);
         }
     }
@@ -452,18 +451,12 @@ impl Profiler {
     }
 
     // This function has to be AS-safe
-    pub fn sample(
-        &mut self,
-        backtrace: SmallVec<[Frame; MAX_DEPTH]>,
-    ) {
+    pub fn sample(&mut self, backtrace: SmallVec<[Frame; MAX_DEPTH]>) {
         let frames = UnresolvedFrames::new(backtrace);
         self.sample_counter += 1;
 
         if let Ok(()) = self.data.add(frames, 1) {}
     }
-
-
-
 }
 
 #[cfg(test)]
