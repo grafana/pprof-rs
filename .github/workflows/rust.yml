@@ -45,6 +45,12 @@ jobs:
         run: |
           git diff --no-ext-diff --exit-code
 
+      - name: Setup tmate session on failure
+        if: ${{ failure() && github.event_name == 'pull_request' }}
+        uses: mxschmitt/action-tmate@c0afd6f790e3a5564914980036ebf83216678101 # v3.23
+        with:
+          limit-access-to-actor: true
+
   build:
     name: Build
     strategy:
@@ -94,6 +100,12 @@ jobs:
       - name: Run cargo build frame pointer
         if: ${{ matrix.toolchain == 'nightly' && matrix.os == 'ubuntu-latest' }}
         run: cargo build --no-default-features --features frame-pointer --target ${{ matrix.target }}
+
+      - name: Setup tmate session on failure
+        if: ${{ failure() && github.event_name == 'pull_request' }}
+        uses: mxschmitt/action-tmate@c0afd6f790e3a5564914980036ebf83216678101 # v3.23
+        with:
+          limit-access-to-actor: true
 
   test:
     name: Test
@@ -147,3 +159,9 @@ jobs:
 
       - name: Run cargo test framehop
         run: cargo test --features flamegraph,protobuf-codec,framehop-unwinder --target ${{ matrix.target }} -- --test-threads 1 --nocapture
+
+      - name: Setup tmate session on failure
+        if: ${{ failure() && github.event_name == 'pull_request' }}
+        uses: mxschmitt/action-tmate@c0afd6f790e3a5564914980036ebf83216678101 # v3.23
+        with:
+          limit-access-to-actor: true
