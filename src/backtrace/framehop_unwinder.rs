@@ -117,7 +117,7 @@ impl FramehopUnwinder {
 
 fn read_stack(addr: u64) -> Result<u64, ()> {
     let aligned_addr = addr & !0b111;
-    if crate::addr_validate::validate(aligned_addr as _) {
+    if crate::addr_validate::validate(aligned_addr as *const u128) {
         Ok(unsafe { (aligned_addr as *const u64).read() })
     } else {
         Err(())

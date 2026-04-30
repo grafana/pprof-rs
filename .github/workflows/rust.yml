@@ -141,3 +141,36 @@ jobs:
 
       - name: Run cargo test framehop
         run: cargo test --features flamegraph,protobuf-codec,framehop-unwinder --target ${{ matrix.target }} -- --test-threads 1
+
+  asan:
+    name: Test (AddressSanitizer)
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-Zsanitizer=address"
+      RUSTDOCFLAGS: "-Zsanitizer=address"
+      ASAN_OPTIONS: "detect_leaks=0"
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9
+        with:
+          toolchain: nightly
+          target: x86_64-unknown-linux-gnu
+          components: rust-src
+
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Run cargo test prost (ASan)
+        run: cargo test --features flamegraph,prost-codec --target x86_64-unknown-linux-gnu -- --test-threads 1
+
+      - name: Run cargo test protobuf (ASan)
+        run: cargo test --features flamegraph,protobuf-codec --target x86_64-unknown-linux-gnu -- --test-threads 1
+
+      - name: Run cargo test framehop (ASan)
+        run: cargo test --features flamegraph,protobuf-codec,framehop-unwinder --target x86_64-unknown-linux-gnu -- --test-threads 1

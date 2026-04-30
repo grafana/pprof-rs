@@ -68,7 +68,19 @@ fn open_pipe() -> nix::Result<()> {
 // if the second argument of `write(ptr, buf)` is not a valid address, the
 // `write()` will return an error the error number should be `EFAULT` in most
 // cases, but we regard all errors (except EINTR) as a failure of validation
-pub fn validate(addr: *const libc::c_void) -> bool {
+//
+// `validate` reads exactly `2 * size_of::<*const c_void>()` bytes from `addr`,
+// so `T` must be at least that wide. The bound is enforced at compile time.
+pub fn validate<T>(addr: *const T) -> bool {
+    struct AssertSize<T>(core::marker::PhantomData<T>);
+    impl<T> AssertSize<T> {
+        const OK: () = assert!(
+            size_of::<T>() >= 2 * size_of::<*const libc::c_void>(),
+            "validate<T>(): T must be at least two pointer sizes wide",
+        );
+    }
+    let _: () = AssertSize::<T>::OK;
+
     // it's a short circuit for null pointer, as it'll give an error in
     // `std::slice::from_raw_parts` if the pointer is null.
     if addr.is_null() {
@@ -112,23 +124,23 @@ mod test {
 
     #[test]
     fn validate_stack() {
-        let i = 0;
+        let i: u128 = 0;
 
-        assert!(validate(&i as *const _ as *const libc::c_void));
+        assert!(validate(&i));
     }
 
     #[test]
     fn validate_heap() {
-        let vec = vec![0; 1000];
+        let vec: Vec<u128> = vec![0; 1000];
 
         for i in vec.iter() {
-            assert!(validate(i as *const _ as *const libc::c_void));
+            assert!(validate(i));
         }
     }
 
     #[test]
     fn failed_validate() {
-        assert!(!validate(std::ptr::null::<libc::c_void>()));
-        assert!(!validate(-1_i32 as usize as *const libc::c_void))
+        assert!(!validate(std::ptr::null::<u128>()));
+        assert!(!validate(-1_i32 as usize as *const u128))
     }
 }
