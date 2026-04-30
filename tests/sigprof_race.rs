@@ -1,5 +1,3 @@
-#![cfg(feature = "framehop-unwinder")]
-
 // Regression test for SIGPROF races during rapid profiler start/stop cycles.
 //
 // Original bug (978d3aa): unregister_signal_handler() restored SIG_DFL, which
