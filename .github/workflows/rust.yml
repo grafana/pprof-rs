@@ -138,6 +138,3 @@ jobs:
 
       - name: Run cargo test protobuf
         run: cargo test --features flamegraph,protobuf-codec,framehop-unwinder --target ${{ matrix.target }} -- --test-threads 1
-
-      - name: Run cargo test framehop
-        run: cargo test --features flamegraph,protobuf-codec,framehop-unwinder --target ${{ matrix.target }} -- --test-threads 1
